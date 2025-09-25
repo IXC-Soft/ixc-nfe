@@ -41,7 +41,7 @@ Biblioteca para geração e comunicação das NFe com as SEFAZ autorizadoras, e 
 
 > Os estados de **CE**, **PR** e **SP** **NÃO ACEITAM EMISSÃO com eCPF**
 
-> AM e GO não foi possivel verificar por problemas na comunicação
+> AM e GO não foi possível verificar por problemas na comunicação
 
 > Todos os demais estados (aparentemente) já aceitam emissão por eCPF
 
