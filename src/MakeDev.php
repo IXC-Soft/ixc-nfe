@@ -88,6 +88,10 @@ final class MakeDev
      */
     protected $tpAmb = 2;
     /**
+     * @var int
+     */
+    protected $crt;
+    /**
      * @var array
      */
     public $errors = [];
@@ -104,13 +108,21 @@ final class MakeDev
      */
     protected string $version;
     /**
-     * @var int
+     * @var string
      */
-    protected int $mod = 55;
+    protected string $mod = '55';
     /**
      * @var string
      */
     protected string $csrt;
+    /**
+     * @var string
+     */
+    protected $cst_ibscbs;
+    /**
+     * @var int
+     */
+    protected $indDeduzDeson = 0;
     /**
      * @var bool
      */
@@ -124,7 +136,7 @@ final class MakeDev
      */
     public $dom;
     /**
-     * @var float
+     * @var float|null
      */
     protected $vNFTot;
     /**
@@ -267,6 +279,10 @@ final class MakeDev
      * @var DOMElement
      */
     protected $cana;
+    /**
+     * @var DOMElement
+     */
+    protected $infNFeSupl;
     /**
      * @var array
      */
@@ -947,7 +963,6 @@ final class MakeDev
                     $ibscbs = $this->aIBSCBS[$item];
                     //existe o grupo gIBSCBS no node IBSCBS ?
                     $gIBSCBS = $ibscbs->getElementsByTagName("gIBSCBS")->item(0);
-
                     if (!empty($this->aGTribRegular[$item]) && !empty($gIBSCBS)) {
                         //add gTribRegular
                         $gIBSCBS->appendChild($this->aGTribRegular[$item]);
@@ -956,11 +971,14 @@ final class MakeDev
                         $gIBSCBS->appendChild($this->aIBSCredPres[$item]);
                     }
                     if (!empty($this->aCBSCredPres[$item]) && !empty($gIBSCBS)) {
-                        $ibscbs->appendChild($this->aCBSCredPres[$item]);
+                        $gIBSCBS->appendChild($this->aCBSCredPres[$item]);
+                    }
+                    if (!empty($this->aGTribCompraGov[$item]) && !empty($gIBSCBS)) {
+                        $gIBSCBS->appendChild($this->aGTribCompraGov[$item]);
                     }
                     //CHICE gIBSCBS, gIBSCBSMono, gTranfCred
                     //existe o grupo gIBSCBS no node IBSCBS ?
-                    $gIBSCBS = $ibscbs->getElementsByTagName("gIBSCBS")->item(0);
+                    ///$gIBSCBS = $ibscbs->getElementsByTagName("gIBSCBS")->item(0);
                     if (!empty($gIBSCBS)) {
                         //add gIBSCBS ao node imposto
                         $this->addTag($ibscbs, $gIBSCBS, 'Falta a tag IBSCBS!');
@@ -968,7 +986,7 @@ final class MakeDev
                         //não existe gIBSCBS, então add gIBSCBSMono
                         $this->addTag($ibscbs, $this->aGIBSCBSMono[$item], 'Falta a tag IBSCBS!');
                     } elseif (!empty($this->aGTransfCred[$item])) {
-                        //gTranfCred
+                        //não existe gIBSCBS, nem gIBSCBSMono então add gTransfCred
                         $this->addTag($ibscbs, $this->aGTransfCred[$item], 'Falta a tag IBSCBS!');
                     }
                     //gCredPresIBSZFM
@@ -1043,7 +1061,7 @@ final class MakeDev
 
         $this->stdTot->vNF = $this->stdTot->vProd
             - $this->stdTot->vDesc
-            - $this->stdTot->vICMSDeson
+            - $this->stdTot->vICMSDeson * $this->indDeduzDeson
             + $this->stdTot->vST
             + $this->stdTot->vFCPST
             + $this->stdTot->vICMSMonoReten
@@ -1555,7 +1573,7 @@ final class MakeDev
                 $this->addTag($total, $this->ISTot);
             }
             //Totalizador do IBSCBS
-            if (empty($this->IBSCBSTot) && !empty($this->stdIBSCBSTot->vBCIBSCBS)) {
+            if (empty($this->IBSCBSTot) && !empty($this->cst_ibscbs)) {
                 //não foi informado o total do IBSCBS, obter do calculado
                 $ib = [
                     'vBCIBSCBS',
@@ -1586,7 +1604,8 @@ final class MakeDev
                 $this->addTag($total, $this->IBSCBSTot);
                 //campo vNFTot PL_010
                 //if (empty($this->vNFTot)) {
-                    //$this->vNFTot = $this->stdTot->vNF; //@todo 2026 + $this->stdTot->vIBS + $this->stdTot->vCBS + $this->stdTot->vIS;
+                    //$this->vNFTot = $this->stdTot->vNF;
+                    //@todo 2026 + $this->stdTot->vIBS + $this->stdTot->vCBS + $this->stdTot->vIS;
                 //}
                 if (!empty($this->vNFTot)) {
                     $this->dom->addChild(
