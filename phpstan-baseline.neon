@@ -22,15 +22,10 @@ parameters:
 
 		-
 			message: "#^Unsafe usage of new static\\(\\)\\.$#"
-			count: 1
+			count: 2
 			path: src/Convert.php
 
 		-
 			message: "#^Unsafe usage of new static\\(\\)\\.$#"
 			count: 1
 			path: src/Exception/DocumentsException.php
-
-		-
-			message: "#^Access to an undefined property object\\:\\:\\$item\\.$#"
-			count: 1
-			path: src/Traits/TraitTagDet.php
