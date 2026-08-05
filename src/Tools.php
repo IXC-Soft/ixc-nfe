@@ -157,7 +157,7 @@ class Tools extends ToolsCommon
         if (empty($chave)) {
             throw new InvalidArgumentException('Consulta chave: a chave esta vazia!');
         }
-        if (strlen($chave) != 44 || !is_numeric($chave)) {
+        if (strlen($chave) != 44) {
             throw new InvalidArgumentException("Consulta chave: chave \"$chave\" invalida!");
         }
         $uf = UFList::getUFByCode((int)substr($chave, 0, 2));
@@ -443,7 +443,9 @@ class Tools extends ToolsCommon
             throw new InvalidArgumentException('CC-e: chave ou motivo da correcao vazio!');
         }
         $uf = $this->validKeyByUF($chave);
+        $xCorrecao = str_replace("\n", "||", $xCorrecao);
         $xCorrecao = Strings::replaceUnacceptableCharacters(substr(trim($xCorrecao), 0, 1000));
+        $xCorrecao = str_replace("||", "\n", $xCorrecao);
         $xCondUso = 'A Carta de Correcao e disciplinada pelo paragrafo '
             . '1o-A do art. 7o do Convenio S/N, de 15 de dezembro de 1970 '
             . 'e pode ser utilizada para regularizacao de erro ocorrido '
@@ -839,7 +841,7 @@ class Tools extends ToolsCommon
             $tagAdic .= "<nProtEvento>{$std->protocolo}</nProtEvento>";
         }
         return $this->sefazEvento(
-            'AN',
+            'SVRS',
             $std->chNFe,
             $tpEvento,
             $std->nSeqEvento,
@@ -1186,6 +1188,8 @@ class Tools extends ToolsCommon
                     112130,
                     112140,
                     112150,
+                    self::EVT_INSUCESSO_ENTREGA,
+                    self::EVT_CANCELA_INSUCESSO_ENTREGA,
                 ]
             ) && $uf === 'SVRS'
         ) {
