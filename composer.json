@@ -42,7 +42,7 @@
         "php": ">= 7.4",
         "nfephp-org/sped-common": "^5.1.0",
         "nfephp-org/sped-gtin": "^1.1.0",
-        "justinrainbow/json-schema": "^5.2",
+        "justinrainbow/json-schema": "^5.2 || ^6.5",
         "nfephp-org/sped-da": "^v1.1.6",
         "ext-zlib": "*",
         "ext-dom": "*",
