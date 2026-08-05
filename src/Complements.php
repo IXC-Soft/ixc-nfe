@@ -57,7 +57,7 @@ class Complements
         $domb2b->preserveWhiteSpace = false;
         $domb2b->formatOutput = false;
         $domb2b->loadXML($b2b);
-        $nodeb2b = $domnfe->getElementsByTagName($tagB2B)->item(0);
+        $nodeb2b = $domb2b->getElementsByTagName($tagB2B)->item(0);
         if (empty($nodeb2b)) {
             //xml is not protocoladed or dont is a NFe
             throw DocumentsException::wrongDocument(2);
@@ -258,7 +258,8 @@ class Complements
                     //301 Uso denegado por irregularidade fiscal do emitente
                     //302 Uso denegado por irregularidade fiscal do destinatário
                     //303 Uso Denegado Destinatario nao habilitado a operar na UF
-                    $cstatpermit = ['100', '150', '110', '205', '301', '302', '303'];
+                    //120 Autorizado o uso da NF-e, com alerta (NT 2026.002)
+                    $cstatpermit = ['100', '150', '120', '110', '205', '301', '302', '303'];
                     if (!in_array($cStat, $cstatpermit)) {
                         throw DocumentsException::wrongDocument(4, "[$cStat] $xMotivo");
                     }

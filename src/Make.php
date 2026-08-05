@@ -38,6 +38,7 @@ use NFePHP\NFe\Traits\TraitTagDest;
 use NFePHP\NFe\Traits\TraitTagRetirada;
 use NFePHP\NFe\Traits\TraitTagTotal;
 use NFePHP\NFe\Traits\TraitTagTransp;
+use NFePHP\NFe\Traits\TraitTagGALCZFMCBS;
 use stdClass;
 use DOMElement;
 
@@ -78,9 +79,10 @@ final class Make
     use TraitTagAgropecuario;
     use TraitTagTotal;
     use TraitCalculations;
+    use TraitTagGALCZFMCBS;
 
     public const METHOD_CALCULATION_V1 = 1; //by values, calculate vItem and vNFTot
-    public const METHOD_CALCULATION_V2 = 1; //by tags, calculate vItem and vNFTot
+    public const METHOD_CALCULATION_V2 = 2; //by tags, calculate vItem and vNFTot
 
     protected int $schema; //esta propriedade da classe estabelece qual é a versão do schema sendo considerado
     protected int $tpAmb = 2;
@@ -193,6 +195,9 @@ final class Make
     protected array $aEncerrante = [];
     protected array $aOrigComb = [];
     protected array $aAgropecuarioDefensivo = [];
+    protected array $aGPagAntecipado = [];
+    protected array $aRefDFeAnt = [];
+    protected array $aGALCZFMCBS = [];
 
     /**
      * Função construtora cria um objeto DOMDocument
@@ -281,8 +286,8 @@ final class Make
         $this->stdTot->vIBS = 0;
         $this->stdTot->vCBS = 0;
         $this->stdTot->vIS = 0;
-        $this->stdTot->vNFTot = 0;
-        $this->stdTot->vNFTotCalculated = 0;
+        $this->stdTot->vNFTot = null;
+        $this->stdTot->vNFTotCalculated = null;
         //ISSQN
         $this->stdISSQNTot = new stdClass();
         $this->stdISSQNTot->vServ = 0;
@@ -427,7 +432,24 @@ final class Make
             $this->addTagRefToIde();
             //tag gCompraGov => tag ide Existe apenas a partir da PL_010
             if ($this->schema > 9) {
+                if (!empty($this->gCompraGov) && !empty($this->aRefDFeAnt)) {
+                    foreach ($this->aRefDFeAnt as $ref) {
+                        $this->gCompraGov->appendChild($ref);
+                    }
+                }
                 $this->addTag($this->ide, $this->gCompraGov ?? null, 'Falta a tag "ide"');
+                if (!empty($this->aGPagAntecipado)) {
+                    $this->gPagAntecipado = $this->dom->createElement("gPagAntecipado");
+                    foreach ($this->aGPagAntecipado as $pag) {
+                        $this->dom->addChild(
+                            $this->gPagAntecipado,
+                            "refNFe",
+                            $pag,
+                            true,
+                            "Chave de acesso da NF-e de antecipação de pagamento (gPagAentecipado)"
+                        );
+                    }
+                }
                 $this->addTag($this->ide, $this->gPagAntecipado ?? null, 'Falta a tag "ide"');
             }
             //tag ide => tag infNfe
@@ -723,7 +745,7 @@ final class Make
                 $this->addTag($imposto, $this->aPIS[$item], 'Falta a tag det/imposto!');
             }
             //PISST => imposto
-            if (!empty($this->aPISST[$item]) && empty($this->aPIS[$item])) {
+            if (!empty($this->aPISST[$item])) {
                 //ou o PIS normal ou PISST não pode haver os dois no mesmo item
                 $this->addTag($imposto, $this->aPISST[$item], 'Falta a tag det/imposto!');
             }
@@ -760,6 +782,14 @@ final class Make
                     //CHOICE gIBSCBS, gIBSCBSMono, gTranfCred, gAjusteCompet
                     //existe o grupo gIBSCBS no node IBSCBS ?
                     if (!empty($gIBSCBS)) {
+                        if (!empty($this->aGALCZFMCBS[$item])) {
+                            $node = $this->aGALCZFMCBS[$item];
+                            $gCBS = $gIBSCBS->getElementsByTagName("gCBS")->item(0);
+                            $vCBS = $gCBS->getElementsByTagName("vCBS")->item(0);
+                            $gCBS->removeChild($vCBS);
+                            $this->addTag($gCBS, $node);
+                            $gCBS->appendChild($vCBS);
+                        }
                         //add gIBSCBS ao node imposto
                         $this->addTag($ibscbs, $gIBSCBS, 'Falta a tag IBSCBS!');
                     } elseif (!empty($this->aGIBSCBSMono[$item])) {
@@ -1248,14 +1278,18 @@ final class Make
                 $this->addTag($total, $this->IBSCBSTot);
                 $vNFTotRecalculated = $this->reCalculateNFTotValue();
                 //add vNFTot informado ou calculado
-                if (!empty($this->stdTot->vNFTot)) {
-                    $this->dom->addChild(
-                        $total,
-                        "vNFTot",
-                        $this->conditionalNumberFormatting($this->stdTot->vNFTot, 2),
-                        false,
-                        "$identificador Valor total da NF-e com IBS / CBS / IS"
-                    );
+                if (isset($this->stdTot->vNFTot)) {
+                    if (empty($this->stdTot->vNFTot)) {
+                        $this->errors[] = "tag total - O valor de vNFTot não pode ser ZERO.";
+                    } else {
+                        $this->dom->addChild(
+                            $total,
+                            "vNFTot",
+                            $this->conditionalNumberFormatting($this->stdTot->vNFTot, 2),
+                            false,
+                            "$identificador Valor total da NF-e com IBS / CBS / IS"
+                        );
+                    }
                 } elseif (!empty($vNFTotRecalculated)) {
                     $this->dom->addChild(
                         $total,
@@ -1264,8 +1298,6 @@ final class Make
                         false,
                         "$identificador Valor total da NF-e com IBS / CBS / IS"
                     );
-                } else {
-                    $this->errors[] = "tag total - O valor de vNFTot não pode ser ZERO.";
                 }
             }
         }
@@ -1368,26 +1400,6 @@ final class Make
             }
         }
         return $new;
-    }
-
-    /**
-     * Adjust the text size to the maximum acceptable size
-     * @param string|null $string
-     * @param int $max
-     * @return string|null
-     */
-    protected function adjustingStrings($string, $max = 0): ?string
-    {
-        if (is_null($string)) {
-            return null;
-        }
-        if (empty($string)) {
-            return '';
-        }
-        if ($max === 0) {
-            return $string;
-        }
-        return substr($string, 0, $max);
     }
 
     /**

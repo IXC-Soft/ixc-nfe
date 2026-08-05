@@ -788,7 +788,7 @@ try {
         'vICMSEfet',
         'vICMSSubstituto'
     ];
-    $mk->tagICMSSN((object)$ic);
+    //$mk->tagICMSSN((object)$ic);
 
     //ICMSST
     //Grupo de informação do ICMSST devido para a UF de destino, nas operações interestaduais de produtos que
@@ -1011,7 +1011,7 @@ try {
     ];
     //$mk->tagIS((object) $is);
 
-    //############################## TAG <det/imposto/IBCCBS> opcional ################################################
+    //############################## TAG <det/imposto/IBSCBS> opcional ################################################
     $ibs = [
         'item' => 1, //OBRIGATÓRIO referencia ao item da NFe
         'CST' => '000', //OBRIGATÓRIO CST IBS/CBS 3 digitos
@@ -1078,7 +1078,7 @@ try {
         'vCredPres' => 22.30, //OBRIGATÓRIO Valor do Crédito Presumido 13v2
         'vCredPresCondSus' => 0, //OBRIGATÓRIO Valor do Crédito Presumido em condição suspensiva 13v2
     ];
-    $mk->tagIBSCredPres((object) $cred);
+    //$mk->tagIBSCredPres((object) $cred);
 
     //############################## TAG <det/imposto/IBSCBS/gIBSCBS/gCBSCredPres> opcional ###########################
     $cred = [
@@ -1088,7 +1088,7 @@ try {
         'vCredPres' => 12.34, //OBRIGATÓRIO Valor do Crédito Presumido 13v2
         'vCredPresCondSus' => 9.00, //OBRIGATÓRIO Valor do Crédito Presumido em condição suspensiva 13v2
     ];
-    $mk->tagCBSCredPres((object) $cred);
+    //$mk->tagCBSCredPres((object) $cred);
 
     //############################## TAG <det/imposto/IBSCBS/gIBSCBSMono> opcional ####################################
     //Grupo de Informações do IBS e CBS em operações com imposto monofásico
@@ -1126,7 +1126,7 @@ try {
         'vIBS' => 200.00, //OBRIGATÓRIO Valor do IBS a ser transferido 13v2
         'vCBS' => 35.23, //OBRIGATÓRIO Valor do CBS a ser transferido 13v2
     ];
-    $mk->taggTranfCred((object) $transf);
+    //$mk->taggTranfCred((object) $transf);
 
     //############################## TAG <det/imposto/gCredPresIBSZFM> opcional ##########################################
     //Informações do crédito presumido de IBS para fornecimentos a partir da ZFM
@@ -1279,6 +1279,7 @@ try {
 
     //############################## TAG <cobr/dup> opcional #####################################################
     //bloco de duplicadas (boletos)
+    //para não conflitar com o bloco tagfat, este bloco só é carregado quando for indPag = 1
     //nDup opcional string 1 a 60 caracteres
     //dVenc opcional data de vencimento no formato AAAA-MM-DD
     //vDup OBRIGATÓRIO numero com até 2 decimais
