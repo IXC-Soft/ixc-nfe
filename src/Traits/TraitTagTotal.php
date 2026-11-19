@@ -31,9 +31,12 @@ trait TraitTagTotal
      */
     public function tagTotal(stdClass $std): ?float
     {
-        $possible = ['vNFTot'];
+        $possible = ['vNFTot', 'vProdLiqTot'];
         $std = $this->equilizeParameters($std, $possible);
         $identificador = "W01 <vNFTot> -";
+        if (!empty($std->vProdLiqTot)) {
+            $this->stdTot->vProdLiq = $std->vProdLiqTot;
+        }
         $this->stdTot->vNFTot = ($std->vNFTot ?? null);
         return $this->stdTot->vNFTot;
     }
@@ -98,6 +101,7 @@ trait TraitTagTotal
             'vBCST',
             'vST',
             'vProd',
+            'vProdLiq',
             'vFrete',
             'vSeg',
             'vDesc',
@@ -132,6 +136,9 @@ trait TraitTagTotal
         $vBCST = !empty($std->vBCST) ? $std->vBCST : $this->stdTot->vBCST;
         $vST = !empty($std->vST) ? $std->vST : $this->stdTot->vST;
         $vProd = !empty($std->vProd) ? $std->vProd : $this->stdTot->vProd;
+        if (!empty($std->vProdLiq)) {
+            $this->stdTot->vProdLiq = $std->vProdLiq;
+        }
         $vFrete = !empty($std->vFrete) ? $std->vFrete : $this->stdTot->vFrete;
         $vSeg = !empty($std->vSeg) ? $std->vSeg : $this->stdTot->vSeg;
         $vDesc = !empty($std->vDesc) ? $std->vDesc : $this->stdTot->vDesc;

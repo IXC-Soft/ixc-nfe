@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NFePHP\NFe\Tests;
 
+use DOMElement;
 use NFePHP\Common\Certificate;
 use NFePHP\NFe\Make;
 use NFePHP\NFe\Tests\Common\ToolsFake;
@@ -1092,6 +1093,61 @@ class TraitsCoverageTest extends TestCase
         return '35220605730928000145550010000048661583302923';
     }
 
+    protected function makeChaveNFe65(): string
+    {
+        // Valid key with mod=65 at position 20-21
+        return '35220605730928000145650010000048661583302923';
+    }
+
+    public function test_sefazVinculoPagamento(): void
+    {
+        $tools = $this->getTools();
+
+        $std = new stdClass();
+        $std->chNFe = $this->makeChaveNFe55();
+        $std->nSeqEvento = 1;
+        $std->nProt = '135260832643924';
+        $std->idTransacao = 'ACBS222000';
+        $std->tpMeioPgto = '15';
+        $std->cnpjRecebedor = '05730928000145';
+        $std->cnpjBasePSP = '00000000';
+        $tools->sefazVinculoPagamento($std);
+        $request = $tools->getRequest();
+
+        $this->assertStringContainsString('<tpEvento>110300</tpEvento>', $request);
+        $this->assertStringContainsString('<tpAutor>1</tpAutor>', $request);
+        $this->assertStringContainsString('<verAplic>TestApp_1.0</verAplic>', $request);
+        $this->assertStringContainsString('<nProt>135260832643924</nProt>', $request);
+        $this->assertStringContainsString('<tpMeioPgto>15</tpMeioPgto>', $request);
+        $this->assertStringContainsString('<CNPJReceb>05730928000145</CNPJReceb>', $request);
+        $this->assertStringContainsString('<CNPJBasePSP>00000000</CNPJBasePSP>', $request);
+    }
+
+    public function test_sefazVinculoPagamento_modelo_65(): void
+    {
+        $tools = $this->getTools();
+        $tools->model(65);
+
+        try {
+            $std = new stdClass();
+            $std->chNFe = $this->makeChaveNFe65();
+            $std->nSeqEvento = 1;
+            $std->nProt = '135260832643924';
+            $std->idTransacao = 'ACBS222000';
+            $std->tpMeioPgto = '17';
+            $std->cnpjRecebedor = '05730928000145';
+            $std->cnpjBasePSP = '00000000';
+            $tools->sefazVinculoPagamento($std, 'NfceApp_1.0');
+            $request = $tools->getRequest();
+
+            $this->assertStringContainsString('<tpEvento>110300</tpEvento>', $request);
+            $this->assertStringContainsString('<verAplic>NfceApp_1.0</verAplic>', $request);
+            $this->assertStringContainsString('<tpMeioPgto>17</tpMeioPgto>', $request);
+        } finally {
+            $tools->model(55);
+        }
+    }
+
     public function test_sefazSolApropCredPresumido(): void
     {
         $tools = $this->getTools();
@@ -1837,6 +1893,221 @@ class TraitsCoverageTest extends TestCase
     }
 
     // ──────────────────────────────────────────────────────────────────────
+    //  NT2026.008 - vUnComLiq / vProdLiq (prod) e vProdLiqTot (total)
+    // ──────────────────────────────────────────────────────────────────────
+
+    public function test_getXML_vProdLiqTot_is_sum_of_items_vProdLiq(): void
+    {
+        $dom = $this->renderWithLiqValues([
+            1 => ['vUnComLiq' => '90.00', 'vProdLiq' => '90.00'],
+            2 => ['vUnComLiq' => '80.00', 'vProdLiq' => '80.00'],
+        ]);
+
+        $this->assertSame(2, $dom->getElementsByTagName('vUnComLiq')->length);
+        $this->assertSame(2, $dom->getElementsByTagName('vProdLiq')->length);
+        $this->assertSame('170.00', $dom->getElementsByTagName('vProdLiqTot')->item(0)->nodeValue);
+    }
+
+    public function test_getXML_vProdLiqTot_ignores_item_without_vUnComLiq(): void
+    {
+        $dom = $this->renderWithLiqValues([
+            1 => ['vUnComLiq' => '90.00', 'vProdLiq' => '90.00'],
+            2 => ['vUnComLiq' => null, 'vProdLiq' => '80.00'],
+        ]);
+
+        //o item 2 não leva vProdLiq no XML, então não pode entrar no total
+        $this->assertSame(1, $dom->getElementsByTagName('vProdLiq')->length);
+        $this->assertSame('90.00', $dom->getElementsByTagName('vProdLiqTot')->item(0)->nodeValue);
+    }
+
+    public function test_getXML_without_vUnComLiq_does_not_create_vProdLiqTot(): void
+    {
+        $dom = $this->renderWithLiqValues([
+            1 => ['vUnComLiq' => null, 'vProdLiq' => '90.00'],
+        ]);
+
+        $this->assertSame(0, $dom->getElementsByTagName('vProdLiq')->length);
+        $this->assertSame(0, $dom->getElementsByTagName('vProdLiqTot')->length);
+    }
+
+    /**
+     * Helper: render a NFe whose items receive vUnComLiq / vProdLiq
+     * @param array<int, array<string, ?string>> $items item => valores líquidos
+     */
+    private function renderWithLiqValues(array $items): \DOMDocument
+    {
+        $this->setupBaseTags();
+        foreach ($items as $item => $liq) {
+            $std = new stdClass();
+            $std->item = $item;
+            $std->cProd = '00' . $item;
+            $std->cEAN = 'SEM GTIN';
+            $std->xProd = 'PRODUTO TESTE';
+            $std->NCM = '84719012';
+            $std->CFOP = '5102';
+            $std->uCom = 'UN';
+            $std->qCom = '1.0000';
+            $std->vUnCom = '100.00';
+            $std->vProd = '100.00';
+            $std->vUnComLiq = $liq['vUnComLiq'];
+            $std->vProdLiq = $liq['vProdLiq'];
+            $std->cEANTrib = 'SEM GTIN';
+            $std->uTrib = 'UN';
+            $std->qTrib = '1.0000';
+            $std->vUnTrib = '100.00';
+            $std->indTot = 1;
+            $this->make->tagprod($std);
+            $this->addICMS($item);
+
+            $std = new stdClass();
+            $std->item = $item;
+            $std->vTotTrib = '18.00';
+            $this->make->tagimposto($std);
+        }
+        $this->addPayment();
+
+        $dom = new \DOMDocument();
+        $dom->loadXML($this->make->getXML());
+        return $dom;
+    }
+
+    public function test_getXML_places_icms_previsto_pagto_antecip_inside_icms(): void
+    {
+        $this->setupBaseTags();
+        $this->addProduct(1);
+
+        $std = new stdClass();
+        $std->item = 1;
+        $std->vICMSPrevisto = 10.50;
+        $this->make->tagICMSPrevistoAntecipado($std);
+
+        $std = new stdClass();
+        $std->item = 1;
+        $std->vTotTrib = '0.00';
+        $this->make->tagimposto($std);
+
+        $this->addPayment();
+
+        $xml = $this->make->getXML();
+        $dom = new \DOMDocument();
+        $dom->loadXML($xml);
+        $imposto = $dom->getElementsByTagName('imposto')->item(0);
+        $this->assertNotNull($imposto);
+
+        $direct = [];
+        foreach ($imposto->childNodes as $child) {
+            if ($child->nodeType === XML_ELEMENT_NODE) {
+                $direct[] = $child->nodeName;
+            }
+        }
+        $this->assertContains('ICMS', $direct);
+        $this->assertNotContains('ICMSPrevistoPagtoAntecip', $direct);
+
+        $icms = null;
+        foreach ($imposto->childNodes as $child) {
+            if ($child->nodeType === XML_ELEMENT_NODE && $child->nodeName === 'ICMS') {
+                $icms = $child;
+                break;
+            }
+        }
+        $this->assertNotNull($icms);
+
+        $icmsChildren = [];
+        foreach ($icms->childNodes as $child) {
+            if ($child->nodeType === XML_ELEMENT_NODE) {
+                $icmsChildren[] = $child->nodeName;
+            }
+        }
+        $this->assertSame(['ICMSPrevistoPagtoAntecip'], $icmsChildren);
+        $this->assertSame('10.50', $icms->getElementsByTagName('vICMSPrevisto')->item(0)->nodeValue);
+    }
+
+    /**
+     * @return array<string, array{0: ?string}>
+     */
+    public static function tpOpVeicProdProvider(): array
+    {
+        return [
+            'sem veicProd' => [null],
+            'venda de veiculo novo' => ['2'],
+        ];
+    }
+
+    /**
+     * @dataProvider tpOpVeicProdProvider
+     */
+    public function test_getXML_calculated_vItem_deducts_vICMSDeson_when_indDeduzDeson(?string $tpOp): void
+    {
+        $make = new Make('PL_010_V1.30');
+        $this->setupBaseTags($make);
+        $this->addProduct(1, $make);
+
+        if ($tpOp !== null) {
+            $std = new stdClass();
+            $std->item = 1;
+            $std->tpOp = $tpOp;
+            $std->chassi = '9BWSU19F08B302158';
+            $std->cCor = '1';
+            $std->xCor = 'BRANCA';
+            $std->pot = '150';
+            $std->cilin = '1600';
+            $std->pesoL = '1200';
+            $std->pesoB = '1350';
+            $std->nSerie = 'AAA111222';
+            $std->tpComb = '16';
+            $std->nMotor = 'MOT12345';
+            $std->CMT = '1800.0000';
+            $std->dist = '2600';
+            $std->anoMod = '2025';
+            $std->anoFab = '2024';
+            $std->tpPint = 'M';
+            $std->tpVeic = '06';
+            $std->espVeic = '1';
+            $std->VIN = 'R';
+            $std->condVeic = '1';
+            $std->cMod = '123456';
+            $std->cCorDENATRAN = '01';
+            $std->lota = '5';
+            $std->tpRest = '0';
+            $make->tagveicProd($std);
+        }
+
+        $std = new stdClass();
+        $std->item = 1;
+        $std->orig = '0';
+        $std->CST = '40';
+        $std->vICMSDeson = '10.00';
+        $std->motDesICMS = '9';
+        $std->indDeduzDeson = '1';
+        $make->tagICMS($std);
+
+        $std = new stdClass();
+        $std->item = 1;
+        $std->CST = '000';
+        $std->cClassTrib = '000001';
+        $std->vBC = '100.00';
+        $std->gIBSUF_pIBSUF = '0.1000';
+        $std->gIBSUF_vIBSUF = '0.10';
+        $std->gIBSMun_pIBSMun = '0.0000';
+        $std->gIBSMun_vIBSMun = '0.00';
+        $std->gCBS_pCBS = '0.9000';
+        $std->gCBS_vCBS = '0.90';
+        $make->tagIBSCBS($std);
+
+        $std = new stdClass();
+        $std->item = 1;
+        $make->tagimposto($std);
+
+        $this->addPayment($make);
+
+        $xml = $make->getXML();
+        $this->assertStringContainsString('<indDeduzDeson>1</indDeduzDeson>', $xml);
+        $this->assertStringContainsString('<vItem>90.00</vItem>', $xml);
+        $this->assertStringContainsString('<vNF>90.00</vNF>', $xml);
+        $this->assertStringContainsString('<vNFTot>90.00</vNFTot>', $xml);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
     //  Full XML integration: all covered traits in a single NFe
     // ──────────────────────────────────────────────────────────────────────
 
@@ -1943,6 +2214,176 @@ class TraitsCoverageTest extends TestCase
     // ──────────────────────────────────────────────────────────────────────
     //  Helper methods
     // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * @return list<string>
+     */
+    private function emitChildTagNames(DOMElement $emit): array
+    {
+        $names = [];
+        foreach ($emit->childNodes as $child) {
+            if ($child->nodeType === XML_ELEMENT_NODE) {
+                $names[] = $child->nodeName;
+            }
+        }
+        return $names;
+    }
+
+    private function appendEnderEmit(Make $make): void
+    {
+        $std = new stdClass();
+        $std->xLgr = 'RUA TESTE';
+        $std->nro = '100';
+        $std->xBairro = 'CENTRO';
+        $std->cMun = '3550308';
+        $std->xMun = 'SAO PAULO';
+        $std->UF = 'SP';
+        $std->CEP = '01001000';
+        $std->cPais = '1058';
+        $std->xPais = 'Brasil';
+        $make->tagenderEmit($std);
+    }
+
+    /**
+     * NF-e modelo 55 mínima, no formato de RenderCoverageTest::buildMinimalNFe55,
+     * com ISUFEmit para exercitar a sequência do emit no PL_010_V1.30.
+     */
+    private function buildMinimalNFe55(Make $make): void
+    {
+        $std = new stdClass();
+        $std->Id = '35170358716523000119550010000000301000000300';
+        $std->versao = '4.00';
+        $make->taginfNFe($std);
+
+        $std = new stdClass();
+        $std->cUF = '35';
+        $std->cNF = '80070008';
+        $std->natOp = 'VENDA';
+        $std->mod = '55';
+        $std->serie = '1';
+        $std->nNF = '30';
+        $std->dhEmi = '2017-03-03T11:30:00-03:00';
+        $std->dhSaiEnt = '2017-03-03T11:30:00-03:00';
+        $std->tpNF = '1';
+        $std->idDest = '1';
+        $std->cMunFG = '3550308';
+        $std->tpImp = '1';
+        $std->tpEmis = '1';
+        $std->cDV = '0';
+        $std->tpAmb = '2';
+        $std->finNFe = '1';
+        $std->indFinal = '0';
+        $std->indPres = '1';
+        $std->procEmi = '0';
+        $std->verProc = '5.0';
+        $make->tagide($std);
+
+        $std = new stdClass();
+        $std->xNome = 'EMPRESA TESTE LTDA';
+        $std->xFant = 'EMPRESA TESTE';
+        $std->IE = '123456789012';
+        $std->CRT = '3';
+        $std->CNPJ = '58716523000119';
+        $std->ISUFEmit = '12345678';
+        $make->tagEmit($std);
+
+        $std = new stdClass();
+        $std->xLgr = 'Rua Teste';
+        $std->nro = '100';
+        $std->xBairro = 'Centro';
+        $std->cMun = '3550308';
+        $std->xMun = 'Sao Paulo';
+        $std->UF = 'SP';
+        $std->CEP = '01001000';
+        $std->cPais = '1058';
+        $std->xPais = 'BRASIL';
+        $make->tagenderEmit($std);
+
+        $std = new stdClass();
+        $std->xNome = 'CLIENTE TESTE';
+        $std->indIEDest = '9';
+        $std->CNPJ = '11222333000181';
+        $make->tagdest($std);
+
+        $std = new stdClass();
+        $std->item = 1;
+        $std->cProd = '001';
+        $std->cEAN = 'SEM GTIN';
+        $std->xProd = 'Produto Teste';
+        $std->NCM = '61091000';
+        $std->CFOP = '5102';
+        $std->uCom = 'UN';
+        $std->qCom = '10.0000';
+        $std->vUnCom = '10.0000000000';
+        $std->vProd = '100.00';
+        $std->cEANTrib = 'SEM GTIN';
+        $std->uTrib = 'UN';
+        $std->qTrib = '10.0000';
+        $std->vUnTrib = '10.0000000000';
+        $std->indTot = 1;
+        $make->tagprod($std);
+
+        $std = new stdClass();
+        $std->item = 1;
+        $std->orig = '0';
+        $std->CST = '00';
+        $std->modBC = '0';
+        $std->vBC = '100.00';
+        $std->pICMS = '18.00';
+        $std->vICMS = '18.00';
+        $make->tagICMS($std);
+
+        $std = new stdClass();
+        $std->item = 1;
+        $std->CST = '07';
+        $std->vBC = 0;
+        $std->pPIS = 0;
+        $std->vPIS = 0;
+        $make->tagPIS($std);
+
+        $std = new stdClass();
+        $std->item = 1;
+        $std->CST = '07';
+        $std->vBC = 0;
+        $std->pCOFINS = 0;
+        $std->vCOFINS = 0;
+        $make->tagCOFINS($std);
+
+        $std = new stdClass();
+        $std->vBC = '100.00';
+        $std->vICMS = '18.00';
+        $std->vICMSDeson = '0.00';
+        $std->vFCP = '0.00';
+        $std->vBCST = '0.00';
+        $std->vST = '0.00';
+        $std->vFCPST = '0.00';
+        $std->vFCPSTRet = '0.00';
+        $std->vProd = '100.00';
+        $std->vFrete = '0.00';
+        $std->vSeg = '0.00';
+        $std->vDesc = '0.00';
+        $std->vII = '0.00';
+        $std->vIPI = '0.00';
+        $std->vPIS = '0.00';
+        $std->vCOFINS = '0.00';
+        $std->vOutro = '0.00';
+        $std->vNF = '100.00';
+        $std->vTotTrib = '0.00';
+        $make->tagICMSTot($std);
+
+        $std = new stdClass();
+        $std->modFrete = '9';
+        $make->tagtransp($std);
+
+        $std = new stdClass();
+        $std->vTroco = null;
+        $make->tagpag($std);
+
+        $std = new stdClass();
+        $std->tPag = '01';
+        $std->vPag = '100.00';
+        $make->tagdetPag($std);
+    }
 
     protected function addPayment(?Make $make = null): void
     {
@@ -2212,6 +2653,106 @@ class TraitsCoverageTest extends TestCase
 
         $this->assertInstanceOf(\DOMElement::class, $result);
         $this->assertNull($result->getElementsByTagName('xFant')->item(0));
+    }
+
+    public function test_tagenderEmit_child_order_with_ie(): void
+    {
+        $m = new Make('PL_010_V1.30');
+
+        $std = new stdClass();
+        $std->Id = '35170358716523000119550010000000301000000300';
+        $std->versao = '4.00';
+        $m->taginfNFe($std);
+
+        $std = new stdClass();
+        $std->xNome = 'EMPRESA TESTE LTDA';
+        $std->xFant = 'TESTE';
+        $std->IE = '123456789012';
+        $std->CNPJ = '58716523000119';
+        $std->CRT = '3';
+        $emit = $m->tagEmit($std);
+        $this->appendEnderEmit($m);
+
+        $this->assertSame(
+            ['CNPJ', 'xNome', 'xFant', 'enderEmit', 'IE', 'CRT'],
+            $this->emitChildTagNames($emit)
+        );
+    }
+
+    public function test_tagenderEmit_child_order_without_ie_cpf(): void
+    {
+        $m = new Make('PL_010_V1.30');
+
+        $std = new stdClass();
+        $std->Id = '35170358716523000119550010000000301000000300';
+        $std->versao = '4.00';
+        $m->taginfNFe($std);
+
+        $std = new stdClass();
+        $std->xNome = 'PRODUTOR RURAL';
+        $std->IE = '';
+        $std->CPF = '12345678901';
+        $std->CRT = '3';
+        $emit = $m->tagEmit($std);
+        $this->appendEnderEmit($m);
+
+        $this->assertSame(
+            ['CPF', 'xNome', 'enderEmit', 'CRT'],
+            $this->emitChildTagNames($emit)
+        );
+    }
+
+    public function test_tagenderEmit_child_order_with_im_and_isufemit(): void
+    {
+        $m = new Make('PL_010_V1.30');
+
+        $std = new stdClass();
+        $std->Id = '35170358716523000119550010000000301000000300';
+        $std->versao = '4.00';
+        $m->taginfNFe($std);
+
+        $std = new stdClass();
+        $std->xNome = 'EMPRESA MUNICIPAL';
+        $std->IE = '';
+        $std->IM = '12345';
+        $std->CNAE = '6201500';
+        $std->CRT = '3';
+        $std->CNPJ = '58716523000119';
+        $std->ISUFEmit = '12345678';
+        $emit = $m->tagEmit($std);
+        $this->appendEnderEmit($m);
+
+        $this->assertSame(
+            ['CNPJ', 'xNome', 'enderEmit', 'IM', 'CNAE', 'CRT', 'ISUFEmit'],
+            $this->emitChildTagNames($emit)
+        );
+    }
+
+    public function test_emit_structure_validates_pl010_v130_schema(): void
+    {
+        $make = new Make('PL_010_V1.30');
+        $this->buildMinimalNFe55($make);
+
+        $xml = $make->getXML();
+        $tools = $this->getTools();
+        $tools->model(55);
+        $signed = $tools->signNFe($xml);
+
+        $signedDom = new \DOMDocument();
+        $signedDom->loadXML($signed);
+        $this->assertSame(1, $signedDom->getElementsByTagName('Signature')->length);
+
+        $emit = $signedDom->getElementsByTagName('emit')->item(0);
+        $this->assertInstanceOf(DOMElement::class, $emit);
+        $names = $this->emitChildTagNames($emit);
+        $this->assertLessThan(
+            array_search('IE', $names, true),
+            array_search('enderEmit', $names, true)
+        );
+        $this->assertLessThan(
+            array_search('ISUFEmit', $names, true),
+            array_search('CRT', $names, true)
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────

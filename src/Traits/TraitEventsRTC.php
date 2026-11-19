@@ -16,6 +16,46 @@ use stdClass;
 trait TraitEventsRTC
 {
     /**
+     * Evento: Evento de Vinculação da Transação de Pagamento no DF-e
+     * Este Evento deverá ser gerado pelo emitente do DF-e sempre que se desejar vincular uma ou mais transações
+     * financeiras a um documento fiscal previamente autorizado. Obs.: É possível que a transação financeira vinculada
+     * esteja em situação iniciada, ainda pendente de pagamento e/ou liquidação (ex. boleto emitido
+     * ou QR code Pix gerado)
+     * Modelo: NF-e modelo 55/65, Autor: Emitente da NFe/NFCe, Código do Tipo de Evento:110300
+     * $std = (object) [
+     *     'chNFe' => '12345678901234567890123456789012345678901234', //OBRIGATÓRIO
+     *     'nProt' => '135260832643924' numero do protocolo de autorização
+     *     'idTransacao' => 'ACBS222000', OBRIGATÓRIO de 2 a 35 caracteres
+     *     'toMeioPgto' => '15' Lista do informe técnico  IT2026.001_
+     * ]
+     */
+    public function sefazVinculoPagamento(stdClass $std, ?string $verAplic = null): string
+    {
+        $this->checkModel($std, [55, 65]);
+        $verAplic = $this->resolveVerAplic($verAplic);
+        $tpEvento = '110300';
+        $tagAdic = "<cOrgaoAutor>{$this->cUF}</cOrgaoAutor>"
+            . "<tpAutor>1</tpAutor>"  //1=Empresa Emitente
+            . "<verAplic>{$verAplic}</verAplic>"
+            . "<nProt>{$std->nProt}</nProt>"
+            . '<gPgto idTransacao="' . $std->idTransacao . '">'
+            . "<tpMeioPgto>{$std->tpMeioPgto}</tpMeioPgto>"
+            . "<CNPJReceb>{$std->cnpjRecebedor}</CNPJReceb>"
+            . "<CNPJBasePSP>{$std->cnpjBasePSP}</CNPJBasePSP>"
+            . "</gPgto>";
+
+        return $this->sefazEvento(
+            'SVRS',
+            $std->chNFe,
+            $tpEvento,
+            $std->nSeqEvento ?? 1,
+            $tagAdic,
+            null,
+            null
+        );
+    }
+
+    /**
      * Evento: Informação de efetivo pagamento integral para liberar crédito presumido do adquirente
      * Permitir que o emitente da NFe informe o efetivo pagamento integral a fim de liberar crédito presumido
      * do adquirente
@@ -484,7 +524,7 @@ trait TraitEventsRTC
     /**
      * Evento: Cancelamento de Evento
      * Permitir que o autor de um Evento já autorizado possa proceder o seu cancelamento.
-     * Modelo: NF-e modelo 55, Autor do Evento: O mesmo Autor do Evento que está sendo cancelado.
+     * Modelo: NF-e modelo 55/65, Autor do Evento: O mesmo Autor do Evento que está sendo cancelado.
      * Tipo de Evento (Código - Descrição): 110001 - Cancelamento de Evento
      * @param stdClass $std
      * @param string|null $verAplic
@@ -492,8 +532,7 @@ trait TraitEventsRTC
      */
     public function sefazCancelaEvento(stdClass $std, ?string $verAplic = null): string
     {
-        //apenas 55
-        $this->checkModel($std);
+        $this->checkModel($std, [55, 65]);
         $verAplic = $this->resolveVerAplic($verAplic);
         $tpEvento = '110001';
         $tagAdic = "<cOrgaoAutor>{$this->cUF}</cOrgaoAutor>"
@@ -731,21 +770,25 @@ trait TraitEventsRTC
     }
 
     /**
-     * Somente aceitar modelo 55
+     * Somente aceitar modelos permitidos, por padrão apenas 55
      * @param stdClass $std
+     * @param array $allowedModels
      * @return void
      */
-    protected function checkModel(stdClass $std): void
+    protected function checkModel(stdClass $std, array $allowedModels = [55]): void
     {
-        //apenas 55
-        if ($this->modelo !== 55) {
+        if (!in_array($this->modelo, $allowedModels)) {
             throw new InvalidArgumentException(
-                'O ambiente está ajustado para modelo 65 (NFCe) e esse evento atende apenas o modelo 55 (NFe)'
+                'O ambiente está ajustado para o modelo ' . $this->modelo
+                . ' e esse evento atende apenas o modelo ' . implode(' e ', $allowedModels)
             );
         }
         if (!empty($std->chNFe)) {
-            if (substr($std->chNFe, 20, 2) !== '55') {
-                throw new InvalidArgumentException('A chave da NFe informada não é uma NFe modelo 55');
+            $modeloChave = substr($std->chNFe, 20, 2);
+            if (!in_array($modeloChave, $allowedModels)) {
+                throw new InvalidArgumentException(
+                    'A chave da NFe informada não é uma NFe modelo ' . implode(' e ', $allowedModels)
+                );
             }
         }
     }

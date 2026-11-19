@@ -14,6 +14,7 @@ use DOMException;
  * @property array $aICMSPart
  * @property array $aICMSST
  * @property array $aICMSUFDest
+ * @property array $aICMSPgtoAnt
  * @property int $indDeduzDeson
  * @method equilizeParameters($std, $possible)
  * @method conditionalNumberFormatting($value, $decimal = 2)
@@ -2432,5 +2433,37 @@ trait TraitTagDetICMS
         );
         $this->aICMSUFDest[$std->item] = $icmsUFDest;
         return $icmsUFDest;
+    }
+
+    /**
+     * Grupo ICMSPrevistoPagtoAntecip NB01 pai N01
+     * tag NFe/infNFe/det[]/imposto/ICMS/ICMSPrevistoPagtoAntecip (opcional)
+     * Grupo do ICMS Previsto no Pagamento Antecipado.
+     * Utilizado exclusivamente em cenários específicos de pagamento antecipado para auxiliar na correta
+     * tributação do IBS e da CBS:
+     *   - tpNFDebito = 06-Pagamento antecipado;
+     *   - tpOperGov = 4-Recebimento do pagamento com fornecimento posterior
+     * @param stdClass $std
+     * @return DOMElement
+     * @throws DOMException
+     */
+    public function tagICMSPrevistoAntecipado(stdClass $std): DOMElement
+    {
+        $possible = [
+            'item',
+            'vICMSPrevisto'
+        ];
+        $std = $this->equilizeParameters($std, $possible);
+        $identificador = "NB01 ICMSPrevistoPagtoAntecip Item: $std->item -";
+        $icmspa = $this->dom->createElement('ICMSPrevistoPagtoAntecip');
+        $this->dom->addChild(
+            $icmspa,
+            "vICMSPrevisto",
+            $this->conditionalNumberFormatting($std->vICMSPrevisto),
+            true,
+            "$identificador Valor do ICMS que incidirá no momento do fornecimento futuro"
+        );
+        $this->aICMSPgtoAnt[$std->item] = $icmspa;
+        return $icmspa;
     }
 }
